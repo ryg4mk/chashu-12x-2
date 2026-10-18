@@ -10,4 +10,12 @@
 - 端から実際に落ちた時点でゲームオーバー。最高記録はこの第2作だけの別キーで保存されます。
 - `index.html` 単体で動作。外部JS/CSSは編集用コピーです。
 
-GitHub Pages での公開には新規リポジトリ `chashu-12x-2` を作成し、Pages を `main`/root から配信する設定が必要です。
+## 公開設定
+
+リポジトリ：https://github.com/ryg4mk/chashu-12x-2
+
+GitHubの **Settings → Pages → Build and deployment** で、Source を **Deploy from a branch**、Branch を **main**、フォルダを **/(root)** に設定して Save を押してください。
+
+公開予定URL：https://ryg4mk.github.io/chashu-12x-2/
+
+GitHub Pagesが有効になるまで上記URLは開けません。
