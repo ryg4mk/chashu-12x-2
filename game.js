@@ -3,7 +3,7 @@
 const BASE=6, RAMEN=950, SLICE=70, GRAMS=12, MM=7;
 const PREVIEW_MODE=new URLSearchParams(window.location.search).get('preview')==='1';
 const canvas=document.getElementById('game');let ctx=canvas.getContext('2d');const $=id=>document.getElementById(id);
-const el={score:$('score'),best:$('best'),total:$('total'),overlay:$('overlay'),label:$('panel-label'),title:$('panel-title'),info:$('panel-info'),details:$('result-detail'),start:$('start'),restart:$('restart'),share:$('share-x'),shareFallback:$('share-fallback'),shareTextLink:$('share-text-link')};
+const el={score:$('score'),best:$('best'),total:$('total'),overlay:$('overlay'),label:$('panel-label'),title:$('panel-title'),info:$('panel-info'),details:$('result-detail'),start:$('start'),restart:$('restart'),share:$('share-result'),shareFallback:$('share-fallback'),shareCopy:$('share-copy'),shareCopyText:$('share-copy-text')};
 const min=Math.min,max=Math.max,PI=Math.PI;
 const clamp=(v,a,b)=>max(a,min(b,v));
 const money=n=>Math.round(n).toLocaleString('ja-JP')+'円';
@@ -16,7 +16,8 @@ let shotPulse=null,landPulses=[];
 const SHARE_URL='https://ryg4mk.github.io/chashu-12x-2/';
 let sharePoster=null,shareFile=null;
 function shareCaption(){return `チャーシュー麺、チャーシュー${factor(score)}倍！？`;}
-// A PNG poster contains the visible, accumulated tower, without the result dialog.
+function shareText(){return shareCaption()+'\\n'+SHARE_URL;}
+// The exported image shows the real in-game tower, without the HTML result overlay.
 function makeSharePoster(){
  const poster=document.createElement('canvas'),out=poster.getContext('2d');
  const width=900,pad=42,inner=width-pad*2,header=180,gameHeight=Math.round(inner*H/W);
@@ -33,39 +34,52 @@ function makeSharePoster(){
  return poster;
 }
 function prepareSharePoster(){
- sharePoster=makeSharePoster();shareFile=null;
- el.share.disabled=true;
+ try{sharePoster=makeSharePoster();}catch(error){console.error('Failed to render result image',error);sharePoster=null;el.share.disabled=true;return;}
+ shareFile=null;el.share.disabled=true;
  if(typeof sharePoster.toBlob!=='function'){el.share.disabled=false;return;}
  const poster=sharePoster;
- poster.toBlob(blob=>{
+ try{
+  poster.toBlob(blob=>{
    if(stage!=='over'||poster!==sharePoster)return;
    if(blob&&typeof File!=='undefined')shareFile=new File([blob],`chashu-tower-${score}mai.png`,{type:'image/png'});
    el.share.disabled=false;
- },'image/png');
+  },'image/png');
+ }catch(error){console.warn('PNG blob conversion unavailable',error);el.share.disabled=false;}
 }
-function fallbackXShare(){
- const caption=shareCaption();
- const url='https://twitter.com/intent/tweet?'+new URLSearchParams({text:caption,url:SHARE_URL}).toString();
- const download=document.createElement('a');
+function downloadShareImage(){
+ if(!sharePoster)return;
+ const link=document.createElement('a');
  if(shareFile&&typeof URL.createObjectURL==='function'){
-   const objectURL=URL.createObjectURL(shareFile);download.href=objectURL;
-   setTimeout(()=>URL.revokeObjectURL(objectURL),30000);
- }else download.href=sharePoster.toDataURL('image/png');
- download.download=`chashu-tower-${score}mai.png`;
- download.click();
- el.shareTextLink.href=url;
- el.shareFallback.hidden=false;
- // The intent URL can pre-fill the text + link, but cannot attach a local image.
- window.open(url,'_blank','noopener,noreferrer');
+  const objectURL=URL.createObjectURL(shareFile);
+  link.href=objectURL;
+  setTimeout(()=>URL.revokeObjectURL(objectURL),30000);
+ }else link.href=sharePoster.toDataURL('image/png');
+ link.download=`chashu-tower-${score}mai.png`;
+ link.click();
 }
-async function shareOnX(){
+function showShareFallback(){
+ try{downloadShareImage();}catch(error){console.warn('Result image download failed',error);}
+ el.shareFallback.hidden=false;
+ el.shareCopyText.value=shareText();
+ el.shareCopy.textContent='投稿文とURLをコピー';
+}
+async function shareResult(){
  if(stage!=='over'||!sharePoster)return;
- const text=shareCaption()+'\n'+SHARE_URL;
+ const text=shareText();
  if(shareFile&&navigator.share&&navigator.canShare&&navigator.canShare({files:[shareFile]})){
-   try{await navigator.share({files:[shareFile],text,title:shareCaption()});return;}
-   catch(error){if(error&&error.name==='AbortError')return;}
+  try{await navigator.share({files:[shareFile],text,title:shareCaption()});return;}
+  catch(error){if(error&&error.name==='AbortError')return;}
  }
- fallbackXShare();
+ showShareFallback();
+}
+async function copyShareText(){
+ const text=shareText();
+ if(navigator.clipboard&&navigator.clipboard.writeText){
+  try{await navigator.clipboard.writeText(text);el.shareCopy.textContent='コピーしました';return;}catch{}
+ }
+ el.shareCopyText.value=text;
+ el.shareCopyText.focus();el.shareCopyText.select();
+ el.shareCopy.textContent='文字を選択しました';
 }
 
 const TEMPO={startSpeed:1.90,speedPerSlice:.012,maxBonus:.67,shotDelay:235,holdDelay:175,tapDelay:95};
@@ -137,7 +151,7 @@ canvas.addEventListener('lostpointercapture',pointerUp);window.addEventListener(
 window.addEventListener('blur',stopHold);document.addEventListener('visibilitychange',()=>{if(document.hidden)stopHold()});
 window.addEventListener('keydown',e=>{if((e.code==='Space'||e.code==='Enter')&&!['BUTTON','INPUT','TEXTAREA'].includes(document.activeElement?.tagName)){
 e.preventDefault();if(stage==='play'&&!e.repeat)fire();else if(stage!=='play')start();}});
-el.start.addEventListener('click',start);el.restart.addEventListener('click',start);el.share.addEventListener('click',shareOnX);
+el.start.addEventListener('click',start);el.restart.addEventListener('click',start);el.share.addEventListener('click',shareResult);el.shareCopy.addEventListener('click',copyShareText);
 // 2.5D disc physics: every body has horizontal position and height. A settled
 // body becomes a static collider, NOT a decorative image. Falling pieces must
 // physically land on soup or on discs underneath them. Unsupported overhangs
